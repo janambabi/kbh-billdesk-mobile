@@ -21,7 +21,7 @@ WORKERS = int(os.getenv("KBH_WORKERS", "40"))
 # Keep Playwright browsers inside the deployed application so the Render build
 # browser cache is available to the runtime process as well.
 os.environ.setdefault("PLAYWRIGHT_BROWSERS_PATH", "0")
-RETRIES = int(os.getenv("KBH_RETRIES", "6"))
+RETRIES = int(os.getenv("KBH_RETRIES", "2"))
 PAGE_TIMEOUT = int(os.getenv("KBH_PAGE_TIMEOUT", "35000"))
 HEADLESS = os.getenv("KBH_HEADLESS", "true").lower() in {"1", "true", "yes", "y"}
 DEBUG = Path(__file__).parent / "debug"
@@ -357,7 +357,16 @@ async def block_heavy_resources(route):
     else:
         await route.continue_()
 
-async def one_attempt(browser, roll, month, index, total, attempt):
+async def one_attempt(browser, roll, month, index, total, attempt, progress_callback=None):
+    def stage(message):
+        print(f"[{index}/{total}] {roll} -> {message}", flush=True)
+        if progress_callback:
+            try:
+                progress_callback({"event": "stage", "index": index, "total": total, "rollNo": roll, "stage": message})
+            except Exception:
+                pass
+
+    stage(f"ATTEMPT {attempt}/{RETRIES}: opening BillDesk")
     page = await browser.new_page()
     try:
         page.set_default_timeout(10000)
@@ -368,28 +377,35 @@ async def one_attempt(browser, roll, month, index, total, attempt):
             wait_until="domcontentloaded",
             timeout=PAGE_TIMEOUT,
         )
+        stage("BillDesk page loaded")
 
         inp = await find_admission_input(page)
         if not inp:
             raise RuntimeError("Admission input not found")
 
         await inp.fill(roll)
+        stage("admission number entered")
 
         submit = await find_submit(page)
         if not submit:
             raise RuntimeError("Submit button not found")
 
         await submit.click()
+        stage("Submit clicked; waiting for student details")
         await wait_for_student_details(page, roll)
+        stage("student details loaded")
 
         # Important: wait for the complete student view before clicking Past Payments.
         await page.wait_for_timeout(1200)
 
+        stage("opening Past Payments")
         await click_past_payments(page)
+        stage("Past Payments opened; waiting for history")
 
         # Important: give the Past Payments screen time to populate.
         text = await wait_for_payment_history(page)
         payments = parse_payments(text)
+        stage(f"payment history loaded ({len(payments)} successful payments found)")
 
         target = datetime.strptime(month, "%B %Y")
         matches = []
@@ -401,8 +417,10 @@ async def one_attempt(browser, roll, month, index, total, attempt):
         if matches:
             # If there are multiple successful payments in a month, use the latest.
             date_s, ref, amount = sorted(matches, key=lambda x: x[0])[-1]
+            stage(f"MATCHED {month}: PAID {amount if amount is not None else 'N/A'} {ref}")
             return ("PAID", ref, date_s, amount, "")
 
+        stage(f"no successful payment found for {month}")
         return ("NOT PAID", "", "", None, "")
 
     except Exception as e:
@@ -440,8 +458,10 @@ async def process_student(browser, student, month, index, total, update_lock, pr
     last_error = ""
     for attempt in range(1, RETRIES + 1):
         try:
-            result = await one_attempt(
-                browser, roll, month, index, total, attempt
+            attempt_timeout = max(60, int(PAGE_TIMEOUT / 1000) + 25)
+            result = await asyncio.wait_for(
+                one_attempt(browser, roll, month, index, total, attempt, progress_callback),
+                timeout=attempt_timeout,
             )
             status, ref, date_s, amount, error = result
 
@@ -497,6 +517,17 @@ async def process_student(browser, student, month, index, total, update_lock, pr
                 except Exception: pass
             return "NOT PAID", None
 
+        except asyncio.TimeoutError:
+            last_error = f"BillDesk attempt timed out after {max(60, int(PAGE_TIMEOUT / 1000) + 25)}s"
+            print(f"[{index}/{total}] {roll} -> ATTEMPT {attempt}/{RETRIES} ERROR: {last_error}", flush=True)
+            if progress_callback:
+                try:
+                    progress_callback({"event": "stage", "index": index, "total": total, "rollNo": roll, "stage": last_error})
+                except Exception:
+                    pass
+            if attempt < RETRIES:
+                await asyncio.sleep(min(15, 2.0 * attempt))
+            continue
         except Exception as e:
             last_error = str(e)
             print(

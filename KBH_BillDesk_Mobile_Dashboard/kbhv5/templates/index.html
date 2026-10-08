@@ -5,9 +5,9 @@ let students=[], current=null;const $=id=>document.getElementById(id);function e
 async function showJob(j){
   const c=j.counts||{};
   const total=Number(j.total||0), done=Number(j.processed||0);
-  const current=j.current?(' • Current: '+j.current):'';
+  const current=j.current?(' • Current: '+j.current):''; const stage=j.stage?(' • '+j.stage):'';
   if(j.running){
-    $('autoStatus').textContent='⏳ Checking '+done+' / '+total+' NOT PAID students for '+(j.month||'')+current;
+    $('autoStatus').textContent='⏳ Checking '+done+' / '+total+' NOT PAID students for '+(j.month||'')+current+stage;
     if(j.stale){ $('autoStatus').textContent += ' — no progress for '+(j.staleSeconds||0)+'s'; }
     $('autoBtn').disabled=true;
   }else if(j.error){

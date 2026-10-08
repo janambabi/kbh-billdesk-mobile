@@ -21,6 +21,7 @@ JOB = {
     'total': 0,
     'processed': 0,
     'current': '',
+    'stage': '',
     'counts': {'PAID': 0, 'ALREADY': 0, 'NOT PAID': 0, 'ERROR': 0},
     'results': [],
     'error': '',
@@ -51,6 +52,10 @@ def _progress(event):
             JOB['current'] = ''
         elif kind == 'checking':
             JOB['current'] = str(event.get('rollNo', ''))
+            JOB['stage'] = 'starting'
+        elif kind == 'stage':
+            JOB['current'] = str(event.get('rollNo', ''))
+            JOB['stage'] = str(event.get('stage', ''))
         elif kind == 'result':
             JOB['processed'] = max(JOB['processed'], int(event.get('index', 0)))
             JOB['current'] = str(event.get('rollNo', ''))
@@ -87,6 +92,7 @@ def _run_nonpaid_job(month):
             JOB['finishedAt'] = time.time()
             JOB['heartbeatAt'] = JOB['finishedAt']
             JOB['current'] = ''
+            JOB['stage'] = ''
             JOB['error'] = ''
     except Exception as exc:
         with JOB_LOCK:
@@ -168,6 +174,7 @@ def update_nonpaid():
             'total': len(targets),
             'processed': 0,
             'current': '',
+    'stage': '',
             'counts': {'PAID': 0, 'ALREADY': 0, 'NOT PAID': 0, 'ERROR': 0},
             'results': [],
             'error': ''
