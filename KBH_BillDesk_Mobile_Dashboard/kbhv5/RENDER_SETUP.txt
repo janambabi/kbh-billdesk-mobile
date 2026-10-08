@@ -1,0 +1,16 @@
+KBH BillDesk Mobile Dashboard - Render Setup
+
+Build Command:
+pip install -r requirements.txt && PLAYWRIGHT_BROWSERS_PATH=0 playwright install chromium
+
+Start Command:
+PLAYWRIGHT_BROWSERS_PATH=0 gunicorn web_app:app
+
+Recommended environment variable:
+KBH_WORKERS=3
+
+Root Directory:
+If these files are at the repository root, leave blank.
+If the kbhv5 folder is the repository root, use kbhv5.
+
+Do not use `--with-deps` on Render.

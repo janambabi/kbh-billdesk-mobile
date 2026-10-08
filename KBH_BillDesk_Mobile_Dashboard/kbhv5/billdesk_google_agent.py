@@ -17,7 +17,10 @@ BILLDESK_URL = "https://payments.billdesk.com/bdcollect/pay?p1=6634&p2=15"
 API_URL = "https://script.google.com/macros/s/AKfycbwaRv7MJoPudhwA3c71hSqlOwUjFu-8_Ssn43fuAMWnIcD1TfGYqmPf1fNb1Z_HCPmQ/exec"
 TOKEN = "KBH_BILLDESK_2026"
 
-WORKERS = int(os.getenv("KBH_WORKERS", "40"))
+WORKERS = int(os.getenv("KBH_WORKERS", "3"))
+# Keep Playwright browsers inside the deployed application so the Render build
+# browser cache is available to the runtime process as well.
+os.environ.setdefault("PLAYWRIGHT_BROWSERS_PATH", "0")
 RETRIES = int(os.getenv("KBH_RETRIES", "6"))
 PAGE_TIMEOUT = int(os.getenv("KBH_PAGE_TIMEOUT", "35000"))
 HEADLESS = os.getenv("KBH_HEADLESS", "true").lower() in {"1", "true", "yes", "y"}
@@ -552,6 +555,8 @@ async def run_update(month, mode="3"):
     update_lock = asyncio.Semaphore(12)
 
     async with async_playwright() as p:
+        # With PLAYWRIGHT_BROWSERS_PATH=0, Chromium is installed alongside the
+        # Playwright package during the Render build and is available at runtime.
         browser = await p.chromium.launch(
             headless=HEADLESS,
             args=[
