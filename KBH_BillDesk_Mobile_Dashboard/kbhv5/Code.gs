@@ -155,6 +155,24 @@ function getStudents(month) {
   const statusIndex = findHeader(headers, [
     "paid", "payment status", "status"
   ]);
+  const dateIndex = findHeader(headers, [
+    "date", "payment date"
+  ]);
+  const amountIndex = findHeader(headers, [
+    "amount", "paid amount"
+  ]);
+  const refIndex = findHeader(headers, [
+    "reciept id", "receipt id", "payment ref no", "payment ref"
+  ]);
+  const transactionIndex = findHeader(headers, [
+    "transaction id", "transaction"
+  ]);
+  const retryIndex = findHeader(headers, [
+    "retry count"
+  ]);
+  const errorIndex = findHeader(headers, [
+    "last error", "error"
+  ]);
 
   const students = [];
 
@@ -165,7 +183,13 @@ function getStudents(month) {
     students.push({
       row: r + 1,
       rollNo: roll,
-      status: statusIndex >= 0 ? String(data[r][statusIndex] || "").trim() : ""
+      status: statusIndex >= 0 ? String(data[r][statusIndex] || "").trim() : "",
+      paymentDate: dateIndex >= 0 ? String(data[r][dateIndex] || "").trim() : "",
+      amount: amountIndex >= 0 ? String(data[r][amountIndex] || "").trim() : "",
+      paymentRef: refIndex >= 0 ? String(data[r][refIndex] || "").trim() : "",
+      transactionId: transactionIndex >= 0 ? String(data[r][transactionIndex] || "").trim() : "",
+      retryCount: retryIndex >= 0 ? String(data[r][retryIndex] || "").trim() : "0",
+      error: errorIndex >= 0 ? String(data[r][errorIndex] || "").trim() : ""
     });
   }
 

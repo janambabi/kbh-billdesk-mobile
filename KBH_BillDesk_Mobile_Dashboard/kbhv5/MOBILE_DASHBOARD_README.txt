@@ -22,3 +22,36 @@ PORT = 5000 (optional)
 
 The browser never receives the Google Apps Script token; Flask keeps it server-side.
 The existing billdesk_google_agent.py and Code.gs are preserved.
+
+
+AUTOMATIC "UPDATE NOT PAID STUDENTS"
+====================================
+The mobile dashboard now includes an "Update NOT PAID Students" button.
+
+Workflow:
+1. Select the month.
+2. Tap "Update NOT PAID Students".
+3. The server reads students currently marked NOT PAID.
+4. It checks BillDesk for each student using the existing Playwright agent.
+5. Successful payments are written back to the Google Sheet as PAID with date, amount and reference.
+6. Students with no matching successful payment remain NOT PAID.
+7. Failed checks are marked ERROR and can be retried later.
+
+RENDER REQUIREMENT
+==================
+Because the automatic update uses Playwright/Chromium, use this Render Build Command:
+
+pip install -r requirements.txt && playwright install chromium --with-deps
+
+Start Command:
+
+gunicorn web_app:app
+
+Recommended Render environment variables:
+KBH_API_URL = your deployed Google Apps Script /exec URL
+KBH_API_TOKEN = your Google Apps Script token
+KBH_WORKERS = 5
+KBH_RETRIES = 6
+KBH_HEADLESS = true
+
+Keep the Root Directory blank when web_app.py and requirements.txt are in the repository root.

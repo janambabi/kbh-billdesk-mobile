@@ -505,21 +505,36 @@ async def process_student(browser, student, month, index, total, update_lock):
 
     return "ERROR", last_error
 
-async def main_async():
-    months = get_months()
-    month = choose_month(months)
-    mode = choose_run_mode()
+async def run_update(month, mode="3"):
+    """Run an automatic BillDesk update for the selected month.
 
+    mode:
+      1 = all students
+      2 = ERROR only
+      3 = NOT PAID only
+    Returns a summary dict for the web dashboard.
+    """
     all_students = get_students(month)
     if mode == "2":
-        students = [s for s in all_students if str(s.get("status", "")).strip().upper() == "ERROR"]
+        students = [
+            s for s in all_students
+            if str(s.get("status", "")).strip().upper() == "ERROR"
+        ]
     elif mode == "3":
-        students = [s for s in all_students if str(s.get("status", "")).strip().upper() in {"NOT PAID", "NOT_PAID", "NOTPAID"}]
+        students = [
+            s for s in all_students
+            if str(s.get("status", "")).strip().upper()
+            in {"NOT PAID", "NOT_PAID", "NOTPAID"}
+        ]
     else:
         students = all_students
 
     print("\nSelected:", month)
-    run_mode_label = {"1": "ALL STUDENTS", "2": "RETRY ERRORS ONLY", "3": "NOT PAID ONLY"}[mode]
+    run_mode_label = {
+        "1": "ALL STUDENTS",
+        "2": "RETRY ERRORS ONLY",
+        "3": "NOT PAID ONLY",
+    }.get(mode, "NOT PAID ONLY")
     print("Run mode:", run_mode_label)
     print("Students to process:", len(students))
     print("Workers:", WORKERS)
@@ -528,17 +543,24 @@ async def main_async():
     print("Destination: Google Sheet")
     print("\nStarting automatic update...\n")
 
+    counts = {"PAID": 0, "ALREADY": 0, "NOT PAID": 0, "ERROR": 0}
     if not students:
-        print("No students found in the selected Google Sheet tab.")
-        return
+        print("No students found for this run.")
+        return counts
 
-    # 40-agent mode by default. Override with KBH_WORKERS if BillDesk throttles.
-    # Headless mode avoids rendering 40 visible Chromium windows and is much faster.
     semaphore = asyncio.Semaphore(WORKERS)
     update_lock = asyncio.Semaphore(12)
 
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=HEADLESS, args=["--disable-gpu", "--disable-dev-shm-usage", "--disable-background-networking"])
+        browser = await p.chromium.launch(
+            headless=HEADLESS,
+            args=[
+                "--disable-gpu",
+                "--disable-dev-shm-usage",
+                "--disable-background-networking",
+                "--no-sandbox",
+            ],
+        )
 
         async def worker(student, index):
             async with semaphore:
@@ -552,7 +574,6 @@ async def main_async():
         ]
         results = await asyncio.gather(*tasks)
 
-        counts = {"PAID": 0, "ALREADY": 0, "NOT PAID": 0, "ERROR": 0}
         for status, _ in results:
             counts[status] = counts.get(status, 0) + 1
 
@@ -566,8 +587,16 @@ async def main_async():
         print("Google Sheet: UPDATED")
         print("=" * 55)
 
-        await asyncio.sleep(3)
         await browser.close()
+
+    return counts
+
+
+async def main_async():
+    months = get_months()
+    month = choose_month(months)
+    mode = choose_run_mode()
+    await run_update(month, mode)
 
 def main():
     try:
