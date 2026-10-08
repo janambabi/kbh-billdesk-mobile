@@ -203,63 +203,72 @@ function getMonthSummary(month) {
 
   const data = sheet.getDataRange().getDisplayValues();
   if (data.length < 2) {
-    return {totalStudents:0, paidStudents:0, pendingStudents:0, errorStudents:0,
-            paidAmount:0, pendingAmount:0, totalAmount:0, feeSource:"none"};
+    return {
+      totalStudents: 0,
+      paidStudents: 0,
+      pendingStudents: 0,
+      errorStudents: 0,
+      paidAmount: 0,
+      pendingAmount: 0,
+      totalAmount: 0,
+      feeSource: "AMOUNT COLUMN (H)"
+    };
   }
 
   const headers = data[0].map(h => String(h).trim().toLowerCase());
+  const rollIndex = findHeader(headers, [
+    "roll no", "roll number", "rollno",
+    "admission no", "admission number", "admissionno"
+  ]);
   const statusIndex = findHeader(headers, ["paid", "payment status", "status"]);
   const amountIndex = findHeader(headers, ["amount", "paid amount"]);
-  const feeIndex = findHeader(headers, [
-    "fee", "fee amount", "monthly fee", "mess fee", "food fee",
-    "total fee", "amount due", "due amount", "payable amount", "total amount"
-  ]);
 
-  const monthlyFee = Number(String(PropertiesService.getScriptProperties().getProperty("KBH_MONTHLY_FEE") || "4800").replace(/[^0-9.]/g, "")) || 4800;
-  let totalStudents = 0, paidStudents = 0, pendingStudents = 0, errorStudents = 0;
-  let paidAmount = 0, pendingAmount = 0, totalAmount = 0;
+  if (rollIndex < 0) throw new Error("ROLL NO column not found");
+  if (statusIndex < 0) throw new Error("PAID column not found");
+  if (amountIndex < 0) throw new Error("AMOUNT column not found");
+
+  let totalStudents = 0;
+  let paidStudents = 0;
+  let pendingStudents = 0;
+  let errorStudents = 0;
+  let paidAmount = 0;
+  let pendingAmount = 0;
+  let totalAmount = 0;
 
   for (let r = 1; r < data.length; r++) {
-    // A row counts as a student when it has any non-empty cell and a usable roll/admission number.
-    const rollIndex = findHeader(headers, ["roll no", "roll number", "rollno", "admission no", "admission number", "admissionno"]);
-    if (rollIndex < 0 || !String(data[r][rollIndex] || "").trim()) continue;
+    const roll = String(data[r][rollIndex] || "").trim();
+    if (!roll) continue;
+
     totalStudents++;
 
-    const status = statusIndex >= 0 ? String(data[r][statusIndex] || "").trim().toUpperCase() : "";
-    const paid = status === "PAID";
-    const error = status === "ERROR";
-    const paidValue = amountIndex >= 0 ? Number(String(data[r][amountIndex] || "").replace(/[^0-9.\-]/g, "")) || 0 : 0;
-    const dueValue = feeIndex >= 0 ? Number(String(data[r][feeIndex] || "").replace(/[^0-9.\-]/g, "")) || 0 : monthlyFee;
+    const status = String(data[r][statusIndex] || "").trim().toUpperCase();
+    const amount = Number(
+      String(data[r][amountIndex] || "").replace(/[^0-9.\-]/g, "")
+    ) || 0;
 
-    if (paid) {
+    // In this Google Sheet, column H (AMOUNT) is the amount due for
+    // NOT PAID rows and the amount paid for PAID rows.
+    totalAmount += amount;
+
+    if (status === "PAID") {
       paidStudents++;
-      paidAmount += paidValue;
-      totalAmount += dueValue || paidValue;
-    } else if (error) {
-      errorStudents++;
-      pendingStudents++;
-      pendingAmount += dueValue;
-      totalAmount += dueValue;
+      paidAmount += amount;
     } else {
       pendingStudents++;
-      pendingAmount += dueValue;
-      totalAmount += dueValue;
+      pendingAmount += amount;
+      if (status === "ERROR") errorStudents++;
     }
   }
 
-  // If a fee column is present, totalAmount is the actual sheet total.
-  // Otherwise it is monthlyFee x students. Pending is total minus paid so it stays consistent.
-  if (feeIndex < 0) {
-    totalAmount = monthlyFee * totalStudents;
-    pendingAmount = Math.max(0, totalAmount - paidAmount);
-  } else {
-    pendingAmount = Math.max(0, totalAmount - paidAmount);
-  }
-
   return {
-    totalStudents, paidStudents, pendingStudents, errorStudents,
-    paidAmount, pendingAmount, totalAmount,
-    feeSource: feeIndex >= 0 ? headers[feeIndex] : "KBH_MONTHLY_FEE"
+    totalStudents,
+    paidStudents,
+    pendingStudents,
+    errorStudents,
+    paidAmount,
+    pendingAmount,
+    totalAmount,
+    feeSource: "AMOUNT COLUMN (H)"
   };
 }
 
