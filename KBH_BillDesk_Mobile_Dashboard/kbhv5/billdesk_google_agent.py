@@ -17,7 +17,7 @@ BILLDESK_URL = "https://payments.billdesk.com/bdcollect/pay?p1=6634&p2=15"
 API_URL = "https://script.google.com/macros/s/AKfycbwaRv7MJoPudhwA3c71hSqlOwUjFu-8_Ssn43fuAMWnIcD1TfGYqmPf1fNb1Z_HCPmQ/exec"
 TOKEN = "KBH_BILLDESK_2026"
 
-WORKERS = int(os.getenv("KBH_WORKERS", "40"))
+WORKERS = int(os.getenv("KBH_WORKERS", "5"))
 # Keep Playwright browsers inside the deployed application so the Render build
 # browser cache is available to the runtime process as well.
 os.environ.setdefault("PLAYWRIGHT_BROWSERS_PATH", "0")
