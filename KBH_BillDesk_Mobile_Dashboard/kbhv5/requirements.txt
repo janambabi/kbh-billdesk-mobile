@@ -1,4 +1,3 @@
 playwright>=1.52.0
-
-Flask>=3.0,<4
+Flask<4,>=3.0
 gunicorn
