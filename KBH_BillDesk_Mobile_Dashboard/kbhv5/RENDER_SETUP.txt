@@ -1,16 +1,26 @@
 KBH BillDesk Mobile Dashboard - Render Setup
 
 Build Command:
-pip install -r requirements.txt && PLAYWRIGHT_BROWSERS_PATH=0 playwright install chromium
+pip install -r requirements.txt
 
 Start Command:
-PLAYWRIGHT_BROWSERS_PATH=0 gunicorn web_app:app
+PLAYWRIGHT_BROWSERS_PATH=0 python -m playwright install chromium && PLAYWRIGHT_BROWSERS_PATH=0 gunicorn web_app:app
 
-Recommended environment variable:
-KBH_WORKERS=3
+Environment variable:
+KBH_WORKERS=40
 
 Root Directory:
 If these files are at the repository root, leave blank.
 If the kbhv5 folder is the repository root, use kbhv5.
 
 Do not use `--with-deps` on Render.
+
+Dashboard behavior:
+- Selected month controls the student list and amount summary.
+- Paid Amount = successful PAID amounts for the selected month.
+- Pending Amount = selected-month total fee minus Paid Amount.
+- Total Amount = selected-month total fee.
+- Update NOT PAID Students checks only NOT PAID records for the selected month on BillDesk.
+- A successful BillDesk payment is written back to that selected month's sheet with PAID, amount, date, and reference.
+
+If the sheet contains a fee column (Fee, Fee Amount, Monthly Fee, Mess Fee, Food Fee, Total Fee, Amount Due, Due Amount, Payable Amount, or Total Amount), that value is used per student. If no fee column exists, KBH_MONTHLY_FEE from Apps Script properties is used; the default is ₹4800.

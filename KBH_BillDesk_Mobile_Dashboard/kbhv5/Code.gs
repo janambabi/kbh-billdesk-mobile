@@ -47,7 +47,7 @@ function doGet(e) {
       checkToken(e.parameter.token);
       const month = String(e.parameter.month || "").trim();
       if (!month) return json({ok:false, error:"Month is required"});
-      return json({ok:true, students:getStudents(month)});
+      return json({ok:true, students:getStudents(month), summary:getMonthSummary(month)});
     }
 
     return json({
@@ -194,6 +194,73 @@ function getStudents(month) {
   }
 
   return students;
+}
+
+
+function getMonthSummary(month) {
+  const sheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(month);
+  if (!sheet) throw new Error("Sheet not found: " + month);
+
+  const data = sheet.getDataRange().getDisplayValues();
+  if (data.length < 2) {
+    return {totalStudents:0, paidStudents:0, pendingStudents:0, errorStudents:0,
+            paidAmount:0, pendingAmount:0, totalAmount:0, feeSource:"none"};
+  }
+
+  const headers = data[0].map(h => String(h).trim().toLowerCase());
+  const statusIndex = findHeader(headers, ["paid", "payment status", "status"]);
+  const amountIndex = findHeader(headers, ["amount", "paid amount"]);
+  const feeIndex = findHeader(headers, [
+    "fee", "fee amount", "monthly fee", "mess fee", "food fee",
+    "total fee", "amount due", "due amount", "payable amount", "total amount"
+  ]);
+
+  const monthlyFee = Number(String(PropertiesService.getScriptProperties().getProperty("KBH_MONTHLY_FEE") || "4800").replace(/[^0-9.]/g, "")) || 4800;
+  let totalStudents = 0, paidStudents = 0, pendingStudents = 0, errorStudents = 0;
+  let paidAmount = 0, pendingAmount = 0, totalAmount = 0;
+
+  for (let r = 1; r < data.length; r++) {
+    // A row counts as a student when it has any non-empty cell and a usable roll/admission number.
+    const rollIndex = findHeader(headers, ["roll no", "roll number", "rollno", "admission no", "admission number", "admissionno"]);
+    if (rollIndex < 0 || !String(data[r][rollIndex] || "").trim()) continue;
+    totalStudents++;
+
+    const status = statusIndex >= 0 ? String(data[r][statusIndex] || "").trim().toUpperCase() : "";
+    const paid = status === "PAID";
+    const error = status === "ERROR";
+    const paidValue = amountIndex >= 0 ? Number(String(data[r][amountIndex] || "").replace(/[^0-9.\-]/g, "")) || 0 : 0;
+    const dueValue = feeIndex >= 0 ? Number(String(data[r][feeIndex] || "").replace(/[^0-9.\-]/g, "")) || 0 : monthlyFee;
+
+    if (paid) {
+      paidStudents++;
+      paidAmount += paidValue;
+      totalAmount += dueValue || paidValue;
+    } else if (error) {
+      errorStudents++;
+      pendingStudents++;
+      pendingAmount += dueValue;
+      totalAmount += dueValue;
+    } else {
+      pendingStudents++;
+      pendingAmount += dueValue;
+      totalAmount += dueValue;
+    }
+  }
+
+  // If a fee column is present, totalAmount is the actual sheet total.
+  // Otherwise it is monthlyFee x students. Pending is total minus paid so it stays consistent.
+  if (feeIndex < 0) {
+    totalAmount = monthlyFee * totalStudents;
+    pendingAmount = Math.max(0, totalAmount - paidAmount);
+  } else {
+    pendingAmount = Math.max(0, totalAmount - paidAmount);
+  }
+
+  return {
+    totalStudents, paidStudents, pendingStudents, errorStudents,
+    paidAmount, pendingAmount, totalAmount,
+    feeSource: feeIndex >= 0 ? headers[feeIndex] : "KBH_MONTHLY_FEE"
+  };
 }
 
 function findStudentRow(sheet, roll) {
