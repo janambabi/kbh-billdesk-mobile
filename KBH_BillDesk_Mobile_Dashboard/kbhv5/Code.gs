@@ -203,29 +203,16 @@ function getMonthSummary(month) {
 
   const data = sheet.getDataRange().getDisplayValues();
   if (data.length < 2) {
-    return {
-      totalStudents: 0,
-      paidStudents: 0,
-      pendingStudents: 0,
-      errorStudents: 0,
-      paidAmount: 0,
-      pendingAmount: 0,
-      totalAmount: 0,
-      feeSource: "AMOUNT COLUMN (H)"
-    };
+    return {totalStudents:0, paidStudents:0, pendingStudents:0, errorStudents:0,
+            paidAmount:0, pendingAmount:0, totalAmount:0, feeSource:"AMOUNT"};
   }
 
   const headers = data[0].map(h => String(h).trim().toLowerCase());
-  const rollIndex = findHeader(headers, [
-    "roll no", "roll number", "rollno",
-    "admission no", "admission number", "admissionno"
-  ]);
+  const rollIndex = findHeader(headers, ["roll no", "roll number", "rollno", "admission no", "admission number", "admissionno"]);
   const statusIndex = findHeader(headers, ["paid", "payment status", "status"]);
   const amountIndex = findHeader(headers, ["amount", "paid amount"]);
 
-  if (rollIndex < 0) throw new Error("ROLL NO column not found");
-  if (statusIndex < 0) throw new Error("PAID column not found");
-  if (amountIndex < 0) throw new Error("AMOUNT column not found");
+  if (rollIndex < 0) throw new Error("Roll No / Admission No column not found");
 
   let totalStudents = 0;
   let paidStudents = 0;
@@ -240,14 +227,14 @@ function getMonthSummary(month) {
     if (!roll) continue;
 
     totalStudents++;
+    const status = statusIndex >= 0 ? String(data[r][statusIndex] || "").trim().toUpperCase() : "";
+    const amount = amountIndex >= 0
+      ? Number(String(data[r][amountIndex] || "").replace(/[^0-9.\-]/g, "")) || 0
+      : 0;
 
-    const status = String(data[r][statusIndex] || "").trim().toUpperCase();
-    const amount = Number(
-      String(data[r][amountIndex] || "").replace(/[^0-9.\-]/g, "")
-    ) || 0;
-
-    // In this Google Sheet, column H (AMOUNT) is the amount due for
-    // NOT PAID rows and the amount paid for PAID rows.
+    // In this sheet, column H = AMOUNT is the amount due for NOT PAID rows
+    // and the amount actually paid for PAID rows. Therefore all three dashboard
+    // totals must be calculated directly from column H.
     totalAmount += amount;
 
     if (status === "PAID") {
@@ -268,7 +255,7 @@ function getMonthSummary(month) {
     paidAmount,
     pendingAmount,
     totalAmount,
-    feeSource: "AMOUNT COLUMN (H)"
+    feeSource: amountIndex >= 0 ? headers[amountIndex] : "AMOUNT"
   };
 }
 

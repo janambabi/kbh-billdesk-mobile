@@ -419,13 +419,22 @@ async def one_attempt(browser, roll, month, index, total, attempt):
     finally:
         await page.close()
 
-async def process_student(browser, student, month, index, total, update_lock, progress=None):
+async def process_student(browser, student, month, index, total, update_lock, progress_callback=None):
     roll = student["rollNo"]
+
+    if progress_callback:
+        try:
+            progress_callback({"event":"checking", "index":index, "total":total, "rollNo":roll})
+        except Exception:
+            pass
 
     # If already marked PAID in Google Sheet, don't waste another BillDesk request.
     existing = str(student.get("status", "")).strip().upper()
     if existing == "PAID":
         print(f"[{index}/{total}] {roll} -> ALREADY PAID (Google Sheet)")
+        if progress_callback:
+            try: progress_callback({"event":"result", "index":index, "total":total, "rollNo":roll, "status":"ALREADY", "amount":student.get("amount", "")})
+            except Exception: pass
         return "ALREADY", None
 
     last_error = ""
@@ -437,7 +446,6 @@ async def process_student(browser, student, month, index, total, update_lock, pr
             status, ref, date_s, amount, error = result
 
             payload = {
-                "action": "update",
                 "token": TOKEN,
                 "month": month,
                 "rollNo": roll,
@@ -478,19 +486,19 @@ async def process_student(browser, student, month, index, total, update_lock, pr
                     f"[{index}/{total}] {roll} -> PAID {date_s} "
                     f"{amount_text} {ref}"
                 )
-                if progress:
-                    progress(index, total, roll, "PAID", f"₹{amount:g}" if isinstance(amount, (int, float)) else "₹N/A", ref)
+                if progress_callback:
+                    try: progress_callback({"event":"result", "index":index, "total":total, "rollNo":roll, "status":"PAID", "amount":amount, "paymentDate":date_s, "paymentRef":ref})
+                    except Exception: pass
                 return "PAID", None
 
             print(f"[{index}/{total}] {roll} -> NOT PAID FOR {month}")
-            if progress:
-                progress(index, total, roll, "NOT PAID", "", "")
+            if progress_callback:
+                try: progress_callback({"event":"result", "index":index, "total":total, "rollNo":roll, "status":"NOT PAID", "amount":student.get("amount", "")})
+                except Exception: pass
             return "NOT PAID", None
 
         except Exception as e:
             last_error = str(e)
-            if progress:
-                progress(index, total, roll, "ERROR", "", last_error)
             print(
                 f"[{index}/{total}] {roll} -> ATTEMPT {attempt}/{RETRIES} "
                 f"ERROR: {last_error}"
@@ -513,9 +521,12 @@ async def process_student(browser, student, month, index, total, update_lock, pr
     except Exception:
         pass
 
+    if progress_callback:
+        try: progress_callback({"event":"result", "index":index, "total":total, "rollNo":roll, "status":"ERROR", "error":last_error})
+        except Exception: pass
     return "ERROR", last_error
 
-async def run_update(month, mode="3", progress=None):
+async def run_update(month, mode="3", progress_callback=None):
     """Run an automatic BillDesk update for the selected month.
 
     mode:
@@ -547,6 +558,9 @@ async def run_update(month, mode="3", progress=None):
     }.get(mode, "NOT PAID ONLY")
     print("Run mode:", run_mode_label)
     print("Students to process:", len(students))
+    if progress_callback:
+        try: progress_callback({"event":"started", "month":month, "total":len(students)})
+        except Exception: pass
     print("Workers:", WORKERS)
     print("Headless browser:", HEADLESS)
     print("Retries per student:", RETRIES)
@@ -577,7 +591,7 @@ async def run_update(month, mode="3", progress=None):
         async def worker(student, index):
             async with semaphore:
                 return await process_student(
-                    browser, student, month, index, len(students), update_lock, progress
+                    browser, student, month, index, len(students), update_lock, progress_callback
                 )
 
         tasks = [
@@ -597,6 +611,9 @@ async def run_update(month, mode="3", progress=None):
         print("Not paid:", counts["NOT PAID"])
         print("Errors after retries:", counts["ERROR"])
         print("Google Sheet: UPDATED")
+        if progress_callback:
+            try: progress_callback({"event":"completed", "month":month, "total":len(students), "counts":counts})
+            except Exception: pass
         print("=" * 55)
 
         await browser.close()

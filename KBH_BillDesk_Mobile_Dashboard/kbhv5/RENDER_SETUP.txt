@@ -17,9 +17,11 @@ Do not use `--with-deps` on Render.
 
 Dashboard behavior:
 - Selected month controls the student list and amount summary.
-- Paid Amount = successful PAID amounts for the selected month.
-- Pending Amount = selected-month total fee minus Paid Amount.
-- Total Amount = selected-month total fee.
+- Column C (ROLL NO) is used for student matching.
+- Column E (RECIEPT ID), F (DATE), G (PAID), and H (AMOUNT) are the payment fields.
+- Paid Amount = SUM of H for rows whose G is PAID.
+- Pending Amount = SUM of H for rows whose G is not PAID.
+- Total Amount = SUM of H for all students in the selected month.
 - Update NOT PAID Students checks only NOT PAID records for the selected month on BillDesk.
 - A successful BillDesk payment is written back to that selected month's sheet with PAID, amount, date, and reference.
 

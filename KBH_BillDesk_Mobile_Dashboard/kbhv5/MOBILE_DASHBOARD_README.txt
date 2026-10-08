@@ -26,7 +26,7 @@ The existing billdesk_google_agent.py and Code.gs are preserved.
 
 AUTOMATIC "UPDATE NOT PAID STUDENTS"
 ====================================
-The mobile dashboard now includes an "Update NOT PAID Students" button.
+The mobile dashboard now includes an "Update NOT PAID Students" button with live progress and terminal-style results.
 
 Workflow:
 1. Select the month.
@@ -39,19 +39,21 @@ Workflow:
 
 RENDER REQUIREMENT
 ==================
-Because the automatic update uses Playwright/Chromium, use this Render Build Command:
+Because the automatic update uses Playwright/Chromium, use:
 
-pip install -r requirements.txt && playwright install chromium --with-deps
+Build Command:
+pip install -r requirements.txt
 
 Start Command:
-
-gunicorn web_app:app
+PLAYWRIGHT_BROWSERS_PATH=0 python -m playwright install chromium && PLAYWRIGHT_BROWSERS_PATH=0 gunicorn web_app:app
 
 Recommended Render environment variables:
 KBH_API_URL = your deployed Google Apps Script /exec URL
 KBH_API_TOKEN = your Google Apps Script token
-KBH_WORKERS = 5
+KBH_WORKERS = 40
 KBH_RETRIES = 6
 KBH_HEADLESS = true
+
+Do not use --with-deps on Render.
 
 Keep the Root Directory blank when web_app.py and requirements.txt are in the repository root.
