@@ -25,7 +25,7 @@ async function pollNonPaid(){
     let d=await r.json(),j=d.job||{};
     let c=j.counts||{};
     if(j.running){
-      $('autoStatus').textContent='⏳ Checking NOT PAID students for '+(j.month||'')+'…';
+      $('autoStatus').innerHTML='⏳ Checking '+(j.processed||0)+' / '+(j.total||0)+' NOT PAID students for '+esc(j.month||'')+'…<br><b>'+esc(j.last||'')+'</b>'+(j.log&&j.log.length?'<br><small>'+j.log.slice(-5).map(esc).join('<br>')+'</small>':'');
       setTimeout(pollNonPaid,2000);
       return;
     }

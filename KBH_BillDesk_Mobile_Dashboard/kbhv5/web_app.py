@@ -24,12 +24,23 @@ JOB = {
     "finishedAt": None,
     "counts": {"PAID": 0, "ALREADY": 0, "NOT PAID": 0, "ERROR": 0},
     "error": "",
+    "processed": 0,
+    "total": 0,
+    "last": "",
+    "log": [],
 }
 
 
 def _run_nonpaid_job(month):
     try:
-        counts = asyncio.run(run_update(month, "3"))
+        def progress(index, total, roll, status, amount, detail):
+            with JOB_LOCK:
+                JOB["processed"] = index
+                JOB["total"] = total
+                JOB["last"] = f"{roll} -> {status}" + (f" {amount}" if amount else "")
+                JOB["log"].append(JOB["last"] + (f" | {detail}" if detail and status == "ERROR" else ""))
+                JOB["log"] = JOB["log"][-20:]
+        counts = asyncio.run(run_update(month, "3", progress=progress))
         with JOB_LOCK:
             JOB["counts"] = counts
             JOB["running"] = False
@@ -113,6 +124,10 @@ def update_nonpaid():
         JOB["finishedAt"] = None
         JOB["counts"] = {"PAID": 0, "ALREADY": 0, "NOT PAID": 0, "ERROR": 0}
         JOB["error"] = ""
+        JOB["processed"] = 0
+        JOB["total"] = 0
+        JOB["last"] = ""
+        JOB["log"] = []
 
     threading.Thread(target=_run_nonpaid_job, args=(month,), daemon=True).start()
     return jsonify(ok=True, message="NOT PAID update started", job=JOB)

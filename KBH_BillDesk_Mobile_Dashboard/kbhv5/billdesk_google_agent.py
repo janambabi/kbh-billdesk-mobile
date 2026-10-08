@@ -419,7 +419,7 @@ async def one_attempt(browser, roll, month, index, total, attempt):
     finally:
         await page.close()
 
-async def process_student(browser, student, month, index, total, update_lock):
+async def process_student(browser, student, month, index, total, update_lock, progress=None):
     roll = student["rollNo"]
 
     # If already marked PAID in Google Sheet, don't waste another BillDesk request.
@@ -437,6 +437,7 @@ async def process_student(browser, student, month, index, total, update_lock):
             status, ref, date_s, amount, error = result
 
             payload = {
+                "action": "update",
                 "token": TOKEN,
                 "month": month,
                 "rollNo": roll,
@@ -477,13 +478,19 @@ async def process_student(browser, student, month, index, total, update_lock):
                     f"[{index}/{total}] {roll} -> PAID {date_s} "
                     f"{amount_text} {ref}"
                 )
+                if progress:
+                    progress(index, total, roll, "PAID", f"₹{amount:g}" if isinstance(amount, (int, float)) else "₹N/A", ref)
                 return "PAID", None
 
             print(f"[{index}/{total}] {roll} -> NOT PAID FOR {month}")
+            if progress:
+                progress(index, total, roll, "NOT PAID", "", "")
             return "NOT PAID", None
 
         except Exception as e:
             last_error = str(e)
+            if progress:
+                progress(index, total, roll, "ERROR", "", last_error)
             print(
                 f"[{index}/{total}] {roll} -> ATTEMPT {attempt}/{RETRIES} "
                 f"ERROR: {last_error}"
@@ -508,7 +515,7 @@ async def process_student(browser, student, month, index, total, update_lock):
 
     return "ERROR", last_error
 
-async def run_update(month, mode="3"):
+async def run_update(month, mode="3", progress=None):
     """Run an automatic BillDesk update for the selected month.
 
     mode:
@@ -570,7 +577,7 @@ async def run_update(month, mode="3"):
         async def worker(student, index):
             async with semaphore:
                 return await process_student(
-                    browser, student, month, index, len(students), update_lock
+                    browser, student, month, index, len(students), update_lock, progress
                 )
 
         tasks = [
